@@ -1,51 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <sys/sem.h>
-#define CICLOS 3
+#include <string.h>
+#include <sys/msg.h>
+#include <wait.h>
+
+typedef struct {
+	long msg_type;		// Tipo de mensaje, debe ser long
+	char mensaje[100];	// Contenido
+	} MSGTYPE;
+
+
+#define CICLOS 10
 char *pais[3]={"Peru","Bolvia","Colombia"};
 #define KEY 0x1111
 
-union semun {
-    int val;
-    struct semid_ds *buf;
-    unsigned short  *array;
-};
-
-struct sembuf p = { 0, -1, SEM_UNDO};
-struct sembuf v = { 0, +1, SEM_UNDO};
-
-union semun u;
-
-void initsem(int idsem, int val){
-
-
-  union semun u;
-  u.val = val;
-  if (semctl(idsem, 0, SETVAL, u) < 0) {
-    exit(1);
-  }
-
-
-}
-
-void signalsem(int idsem){
-
-  if (semop( idsem, &v, 1) < 0) {
-      /* error handling code */
-  }
-
-}
-
-void waitsem(int idsem){
-  if (semop(idsem, &p, 1) < 0) {
-      /* error handling code */
-  }
-}
 
 
 void proceso(int i, int idsem)
@@ -74,11 +43,14 @@ int main()
   int shmid, shmidsem;
   int i;
   int idsem;
-  if ((idsem = semget(KEY, 1, 0666 | IPC_CREAT) < 0)) {
-    return(1);
-  }
-
-	initsem(idsem, 1);
+  int entradasMsg, terminadosMsg;
+  int paisesMsg[3];
+  // Crear un buzón o cola de mensajes
+	entradasMsg=msgget(0x1234,0666|IPC_CREAT);
+  terminadosMsg=msgget(0x1235,0666|IPC_CREAT);
+  paisesMsg[0]=msgget(0x1236,0666|IPC_CREAT);
+  paisesMsg[1]=msgget(0x1237,0666|IPC_CREAT);
+  paisesMsg[2]=msgget(0x1238,0666|IPC_CREAT);
   srand(getpid());
   for(i=0;i<3;i++)
   {
