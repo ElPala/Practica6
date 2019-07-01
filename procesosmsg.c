@@ -1,65 +1,71 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/wait.h>
 #include <sys/msg.h>
-#include <wait.h>
-
-typedef struct {
-	long msg_type;		// Tipo de mensaje, debe ser long
-	char mensaje[100];	// Contenido
-	} MSGTYPE;
-
+#include <sys/types.h>
 
 #define CICLOS 10
-char *pais[3]={"Peru","Bolvia","Colombia"};
-#define KEY 0x1111
 
+char * pais[3] = {
+  "Peru",
+  "Bolvia",
+  "Colombia"
+};
 
+typedef struct {
+	long msg_type;
+	char mensaje[100];
+	} MSGTYPE;
 
-void proceso(int i, int idsem)
-{
+int id;
+MSGTYPE me;
+MSGTYPE mr;
+
+void proceso(int i) {
   int k;
-  for(k=0;k<CICLOS;k++)
-  {
-    waitsem(idsem);
+  for (k = 0; k < CICLOS; k++) {
 
-    printf("Entra %s",pais[i]);
+    msgrcv(id, &mr, sizeof(MSGTYPE)-sizeof(long), 1, 0);
+
+    printf("Entra %s", pais[i]);
     fflush(stdout);
-    sleep(rand()%3);
-    printf("- %s Sale\n",pais[i]);
-
-    signalsem(idsem);
+    sleep(rand() % 3);
+    printf("- %s Sale\n", pais[i]);
+    // Salida de la sección crítica
     // Espera aleatoria fuera de la sección crítica
-    sleep(rand()%3);
+
+    strcpy(me.mensaje,"Fin");
+    msgsnd(id,&me,sizeof(MSGTYPE)-sizeof(long),0);
+    sleep(rand() % 3);
   }
-  exit(0); // Termina el proceso
+  exit(0);
+  // Termina el proceso
 }
 
-int main()
-{
+int main() {
   int pid;
   int status;
-  int shmid, shmidsem;
   int i;
-  int idsem;
-  int entradasMsg, terminadosMsg;
-  int paisesMsg[3];
-  // Crear un buzón o cola de mensajes
-	entradasMsg=msgget(0x1234,0666|IPC_CREAT);
-  terminadosMsg=msgget(0x1235,0666|IPC_CREAT);
-  paisesMsg[0]=msgget(0x1236,0666|IPC_CREAT);
-  paisesMsg[1]=msgget(0x1237,0666|IPC_CREAT);
-  paisesMsg[2]=msgget(0x1238,0666|IPC_CREAT);
+
+  id = msgget(0x1235, IPC_CREAT | 0666);
+  me.msg_type = 1;
+  strcpy(me.mensaje,"Start");
+  msgsnd(id,&me,sizeof(MSGTYPE)-sizeof(long),0);
+
   srand(getpid());
-  for(i=0;i<3;i++)
-  {
-// Crea un nuevo proceso hijo que ejecuta la función proceso()
-	  pid=fork();
-	  if(pid==0)
-	    proceso(i,idsem);
+  for (i = 0; i < 3; i++) {
+    // Crea un nuevo proceso hijo que ejecuta la función proceso()
+    pid = fork();
+    if (pid == 0)
+      proceso(i);
   }
-  for(i=0;i<3;i++)
-    pid = wait(&status);
-	return 0;
+  for (i = 0; i < 3; i++)
+    pid = wait( & status);
+
+  msgctl(id, IPC_RMID, NULL);
+
 }
